@@ -15,7 +15,7 @@
     <arg name="verbose" value="true"/>
   </include>
 
-<node name="spawn_objet" pkg="intelligent_robotics" type="spawn_random_position.py" output="screen" />
+  <node name="spawn_objet" pkg="intelligent_robotics" type="spawn_random_position.py" output="screen" />
   <!-- Set the robot urdf on the parameter server -->
   <param name="robot_description" command="xacro  '$(find ur5eRobotiq3f_moveit_config)/config/gazebo_ur5e_robot_simple.urdf'" />
 

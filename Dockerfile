@@ -24,7 +24,11 @@ RUN chmod 0440 /etc/sudoers.d/99_aptget && chown root:root /etc/sudoers.d/99_apt
 
 
 
-# Install ROS dependencies and text editors: vim and nano
+# ---------------------------------------------------------------------------
+# Block 1 - Install ROS dependencies, editors, and Practice 2 system packages.
+# This block keeps the original dependencies from Practice 1 and adds the
+# packages required by Practice 2: pip and Tk support for Python/OpenCV windows.
+# ---------------------------------------------------------------------------
 RUN apt-get update &&\
     apt-get install -y \
     ros-noetic-effort-controllers* \
@@ -33,7 +37,22 @@ RUN apt-get update &&\
     ros-noetic-soem \
     ros-noetic-socketcan-interface \
     ros-noetic-joint-trajectory-controller \
-    nano vim 
+    python3-pip \
+    python3.8-tk \
+    nano vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Block 2 - Install the Deep Learning / Computer Vision dependency required
+# for the gesture-recognition part of Practice 2.
+# MediaPipe is required later by pose_estimation.py.
+# ---------------------------------------------------------------------------
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    python3 -m pip install --no-cache-dir mediapipe==0.10.9
+
+
+
+
 
 # Switch to the new user
 USER docker
@@ -51,11 +70,26 @@ RUN . /opt/ros/noetic/setup.sh && \
     cd ${HOME}/catkin_ws && \
     catkin_make 
 
-# Set executable permissions for specific scripts
+# ---------------------------------------------------------------------------
+# Block 3 - Give execution permissions to the Python scripts used by ROS.
+# ROS can only execute the scripts with rosrun/roslaunch if they are executable.
+# The "|| true" prevents the Docker build from failing if a future script is not
+# present yet during an intermediate development stage.
+# ---------------------------------------------------------------------------
 USER root
-RUN cd ${HOME}/catkin_ws/src/intelligent_robotics/scripts/ && sudo chmod +x spawn_random_position.py 
-RUN cd ${HOME}/catkin_ws/src/ackermann_vehicle/ackermann_vehicle_gazebo/scripts/ && sudo chmod +x ackermann_controller
+RUN cd ${HOME}/catkin_ws/src/intelligent_robotics/scripts/ && \
+    chmod +x spawn_random_position.py || true && \
+    chmod +x show_camera_robot.py || true && \
+    chmod +x capture_video.py || true && \
+    chmod +x pose_estimation.py || true && \
+    chmod +x obstacle_avoidance.py || true && \
+    chmod +x obstacle_detection.py || true && \
+    chmod +x blue_ackermann_low_level_bridge.py || true
 
+RUN cd ${HOME}/catkin_ws/src/ackermann_vehicle/ackermann_vehicle_gazebo/scripts/ && \
+    chmod +x ackermann_controller
+
+    
 # Update bash configuration
 RUN echo "TERM=xterm-256color" >> ~/.bashrc
 RUN echo "# COLOR Text" >> ~/.bashrc

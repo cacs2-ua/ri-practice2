@@ -1,15 +1,20 @@
 <?xml version="1.0"?>
 <launch>
 
-  <node name="obstacle_detection" pkg="intelligent_robotics" type="obstacle_detection.py"/>
+  <!--
+    Block 1 - Robot camera viewer for Practice 2, Section 3.
+    This node subscribes to the simulated environment camera topic and opens
+    an OpenCV window so the operator can see the robot environment.
+  -->
+  <node
+    name="show_camera_robot"
+    pkg="intelligent_robotics"
+    type="show_camera_robot.py"
+    output="screen">
 
-  <node name="capture_video" pkg="robotica_inteligente" type="capture_video.py"/>
-  
-  <node name="obstacle_avoidance" pkg="robotica_inteligente" type="obstacle_avoidance.py"/>
-  
-  <node name="pose_estimation" pkg="robotica_inteligente" type="pose_estimation.py"/>
-  
-  <node name="show_camera_robot" pkg="robotica_inteligente" type="show_camera_robot.py"/>
+    <param name="camera_image_topic" value="/camera/color/image_raw"/>
+    <param name="camera_window_name" value="BLUE Robot Environment Camera"/>
 
+  </node>
 
 </launch>
