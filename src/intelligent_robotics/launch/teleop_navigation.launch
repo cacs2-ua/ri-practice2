@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-  <node name="obstacle_detection" pkg="robotica_inteligente" type="obstacle_detection.py"/>
+  <node name="obstacle_detection" pkg="intelligent_robotics" type="obstacle_detection.py"/>
 
   <node name="capture_video" pkg="robotica_inteligente" type="capture_video.py"/>
   
