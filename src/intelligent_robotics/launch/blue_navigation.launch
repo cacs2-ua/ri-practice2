@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="object_localization" pkg="intelligent_robotics" type="object_localization.py"/>
+
+  <node name="obstacle_detection" pkg="intelligent_robotics" type="obstacle_detection.py"/>
+
+  <node name="blue_navigation" pkg="intelligent_robotics" type="blue_navigation.py" output="screen"/>
+
+</launch>
