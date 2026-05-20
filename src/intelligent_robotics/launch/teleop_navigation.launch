@@ -2,9 +2,9 @@
 <launch>
 
   <!--
-    Block 1 - Robot camera viewer for Practice 2, Section 3.
-    This node subscribes to the simulated environment camera topic and opens
-    an OpenCV window so the operator can see the robot environment.
+    Block 1 - Robot environment camera viewer.
+    This node displays /camera/color/image_raw so the operator can see the
+    simulated robot environment.
   -->
   <node
     name="show_camera_robot"
@@ -14,6 +14,44 @@
 
     <param name="camera_image_topic" value="/camera/color/image_raw"/>
     <param name="camera_window_name" value="BLUE Robot Environment Camera"/>
+
+  </node>
+
+
+  <!--
+    Block 2 - Operator image capture.
+    This node obtains images from the operator webcam and publishes them in
+    /operator/image.
+  -->
+  <node
+    name="capture_video"
+    pkg="intelligent_robotics"
+    type="capture_video.py"
+    output="screen">
+
+    <param name="operator_image_topic" value="/operator/image"/>
+    <param name="camera_index" value="0"/>
+    <param name="publish_rate" value="30"/>
+    <param name="display_preview" value="true"/>
+    <param name="flip_operator_image" value="true"/>
+
+  </node>
+
+
+  <!--
+    Block 3 - Gesture recognition and pre-safety command generation.
+    This node reads /operator/image, applies MediaPipe Hands, recognises
+    gestures, and publishes the command in /blue/preorder_ackermann_cmd.
+  -->
+  <node
+    name="pose_estimation"
+    pkg="intelligent_robotics"
+    type="pose_estimation.py"
+    output="screen">
+
+    <param name="operator_image_topic" value="/operator/image"/>
+    <param name="preorder_ackermann_topic" value="/blue/preorder_ackermann_cmd"/>
+    <param name="invert_steering" value="false"/>
 
   </node>
 
