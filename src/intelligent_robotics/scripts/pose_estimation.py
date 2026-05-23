@@ -57,10 +57,10 @@ gesture_window_name = "Hand Pose Estimation"
 # These values are conservative so the robot does not move too aggressively.
 # They can be changed using ROS private parameters if needed.
 # ---------------------------------------------------------------------------
-DEFAULT_FORWARD_SPEED = 1.30
-MINIMUM_FORWARD_SPEED = 0.65
-MAXIMUM_FORWARD_SPEED = 2.60
-TURN_STEERING_ANGLE = 0.90
+DEFAULT_FORWARD_SPEED = 0.75
+MINIMUM_FORWARD_SPEED = 0.35
+MAXIMUM_FORWARD_SPEED = 1.50
+TURN_STEERING_ANGLE = 0.60
 
 INDEX_DIRECTION_THRESHOLD = 0.06
 EXTENDED_FINGER_ANGLE_THRESHOLD_DEGREES = 150.0

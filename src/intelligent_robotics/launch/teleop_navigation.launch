@@ -96,11 +96,11 @@
     <param name="vehicle_length" value="1.05"/>
     <param name="vehicle_half_width" value="0.45"/>
     <param name="minimum_detection_distance" value="0.35"/>
-    <param name="maximum_detection_distance" value="6.00"/>
+    <param name="maximum_detection_distance" value="3.00"/>
     <param name="collision_lateral_margin" value="0.35"/>
 
-    <param name="maximum_allowed_speed" value="2.60"/>
-    <param name="maximum_allowed_steering_angle" value="0.90"/>
+    <param name="maximum_allowed_speed" value="1.50"/>
+    <param name="maximum_allowed_steering_angle" value="0.60"/>
 
   </node>
 
