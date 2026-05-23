@@ -78,6 +78,10 @@
     This node receives /blue/preorder_ackermann_cmd and /obstacles, stops the
     robot when a collision risk is detected, and publishes the final command in
     /blue/ackermann_cmd.
+
+    The original /blue/ackermann_controller from Gazebo will now subscribe to
+    /blue/ackermann_cmd directly. Therefore, blue_ackermann_low_level_bridge.py
+    is not launched.
   -->
   <node
     name="obstacle_avoidance"
@@ -97,26 +101,6 @@
 
     <param name="maximum_allowed_speed" value="0.90"/>
     <param name="maximum_allowed_steering_angle" value="0.42"/>
-
-  </node>
-
-
-  <!--
-    Block 6 - Low-level Ackermann bridge.
-    This auxiliary node forwards /blue/ackermann_cmd to the Gazebo wheel and
-    steering controllers so that BLUE can actually move.
-  -->
-  <node
-    name="blue_ackermann_low_level_bridge"
-    pkg="intelligent_robotics"
-    type="blue_ackermann_low_level_bridge.py"
-    output="screen">
-
-    <param name="ackermann_command_topic" value="/blue/ackermann_cmd"/>
-    <param name="wheel_radius" value="0.30"/>
-    <param name="max_wheel_angular_velocity" value="5.80"/>
-    <param name="max_steering_angle" value="0.42"/>
-    <param name="command_timeout" value="0.60"/>
 
   </node>
 

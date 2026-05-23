@@ -15,9 +15,9 @@
     <arg name="verbose" value="true"/>
   </include>
 
-<node name="spawn_objet" pkg="intelligent_robotics" type="spawn_random_position.py" output="screen" />
+  <node name="spawn_objet" pkg="intelligent_robotics" type="spawn_random_position.py" output="screen" />
   <!-- Set the robot urdf on the parameter server -->
-  <param name="robot_description" command="xacro  '$(find ur5eRobotiq3f_moveit_config)/config/gazebo_ur5e_robot_simple.urdf'" />
+  <param name="robot_description" command="xacro '$(find ur5eRobotiq3f_moveit_config)/config/gazebo_ur5e_robot_simple.urdf'" />
 
    <!-- Spawn the vehicle. -->
   <include file="$(find blue_description)/launch/ackermann_vehicle.launch">
@@ -44,6 +44,7 @@
     <node name="ackermann_controller" pkg="ackermann_vehicle_gazebo"
           type="ackermann_controller">
       <param name="cmd_timeout" value="$(arg cmd_timeout)"/>
+      <param name="namespace" value="blue"/>
       <rosparam file="$(find blue_description)/config/blue_ackermann_ctrlr_params.yaml" command="load"/>
     </node>
   </group>
