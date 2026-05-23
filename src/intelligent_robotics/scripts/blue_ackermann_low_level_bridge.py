@@ -156,6 +156,7 @@ class BlueAckermannLowLevelBridge(object):
             self.max_wheel_angular_velocity
         )
 
+
         steering_angle = clamp(
             steering_angle,
             -self.max_steering_angle,
