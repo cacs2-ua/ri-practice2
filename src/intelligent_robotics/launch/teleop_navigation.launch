@@ -53,6 +53,24 @@
     <param name="preorder_ackermann_topic" value="/blue/preorder_ackermann_cmd"/>
     <param name="invert_steering" value="false"/>
 
+    <!--
+      Temporal gesture confirmation.
+      A movement gesture must be detected for several consecutive frames before
+      being accepted. This reduces false positives from isolated MediaPipe errors.
+    -->
+    <param name="gesture_confirmation_frames" value="5"/>
+
+    <!--
+      Stop remains immediate for safety.
+    -->
+    <param name="stop_confirmation_frames" value="5"/>
+
+    <!--
+      If true, the robot stops while a new movement gesture is being confirmed.
+      This is the safest option.
+    -->
+    <param name="stop_while_confirming_new_gesture" value="false"/>
+
   </node>
 
 

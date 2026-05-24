@@ -70,6 +70,31 @@ REVERSE_SPEED_RATIO = 0.60
 INDEX_DIRECTION_THRESHOLD = 0.06
 EXTENDED_FINGER_ANGLE_THRESHOLD_DEGREES = 150.0
 
+# ---------------------------------------------------------------------------
+# Temporal gesture confirmation parameters.
+# A movement gesture is only accepted if it appears for several consecutive
+# frames. This avoids false positives caused by isolated MediaPipe errors.
+#
+# At 30 FPS:
+#   5 frames ≈ 0.16 seconds
+#   8 frames ≈ 0.26 seconds
+#   10 frames ≈ 0.33 seconds
+#
+# Stop is kept immediate for safety.
+# ---------------------------------------------------------------------------
+GESTURE_CONFIRMATION_FRAMES = 5
+STOP_CONFIRMATION_FRAMES = 1
+
+# If True, the robot publishes STOP while a new movement gesture is being
+# confirmed. This is safer than continuing the previous command during
+# uncertain transitions.
+STOP_WHILE_CONFIRMING_NEW_GESTURE = True
+
+# Internal state of the temporal confirmation filter.
+candidate_gesture_name = "stop"
+candidate_gesture_counter = 0
+confirmed_gesture_name = "stop"
+
 
 # ---------------------------------------------------------------------------
 # Block 5 - Utility function to clamp numeric values.
@@ -260,6 +285,69 @@ def recognise_direction_gesture(hand_landmarks):
 
 
 # ---------------------------------------------------------------------------
+# Block 10.1 - Temporal gesture confirmation.
+# This filter prevents one-frame MediaPipe errors from immediately generating
+# robot movement commands. A candidate movement gesture must be detected for
+# GESTURE_CONFIRMATION_FRAMES consecutive frames before it becomes the accepted
+# command. The stop command is treated as immediate for safety.
+# ---------------------------------------------------------------------------
+def update_temporally_confirmed_gesture(raw_gesture_name):
+    global candidate_gesture_name
+    global candidate_gesture_counter
+    global confirmed_gesture_name
+
+    movement_required_frames = max(1, int(GESTURE_CONFIRMATION_FRAMES))
+    stop_required_frames = max(1, int(STOP_CONFIRMATION_FRAMES))
+
+    # Update candidate gesture and consecutive-frame counter.
+    if raw_gesture_name != candidate_gesture_name:
+        candidate_gesture_name = raw_gesture_name
+        candidate_gesture_counter = 1
+    else:
+        candidate_gesture_counter += 1
+
+    # Stop is handled with maximum priority. Even if temporal confirmation is
+    # enabled, publishing stop immediately is safer than waiting several frames.
+    if raw_gesture_name == "stop":
+        if candidate_gesture_counter >= stop_required_frames:
+            confirmed_gesture_name = "stop"
+
+        return (
+            "stop",
+            candidate_gesture_name,
+            min(candidate_gesture_counter, stop_required_frames),
+            stop_required_frames,
+            "confirmed"
+        )
+
+    # Movement gestures require temporal confirmation.
+    if candidate_gesture_counter >= movement_required_frames:
+        confirmed_gesture_name = raw_gesture_name
+
+        return (
+            confirmed_gesture_name,
+            candidate_gesture_name,
+            min(candidate_gesture_counter, movement_required_frames),
+            movement_required_frames,
+            "confirmed"
+        )
+
+    # While a new movement gesture is being confirmed, publish stop by default.
+    # This prevents accidental movement during uncertain gesture transitions.
+    if STOP_WHILE_CONFIRMING_NEW_GESTURE and raw_gesture_name != confirmed_gesture_name:
+        command_gesture_name = "stop"
+    else:
+        command_gesture_name = confirmed_gesture_name
+
+    return (
+        command_gesture_name,
+        candidate_gesture_name,
+        min(candidate_gesture_counter, movement_required_frames),
+        movement_required_frames,
+        "confirming"
+    )
+
+# ---------------------------------------------------------------------------
 # Block 11 - Estimate velocity using the optional second hand.
 # The distance between thumb tip and index tip of the second hand is used as a
 # simple velocity modulus. If only one hand is detected, a default speed is used.
@@ -373,6 +461,47 @@ def draw_gesture_information(image, gesture_name, selected_speed, steering_angle
         )
         y_position += 25
 
+# ---------------------------------------------------------------------------
+# Block 13.1 - Draw temporal confirmation information.
+# This overlay helps to debug whether a raw gesture is already accepted or is
+# still being confirmed frame by frame.
+# ---------------------------------------------------------------------------
+def draw_temporal_confirmation_information(
+    image,
+    raw_gesture_name,
+    command_gesture_name,
+    confirmation_candidate,
+    confirmation_counter,
+    confirmation_required,
+    confirmation_status
+):
+    cv2.putText(
+        image,
+        "Raw: {} | Command: {}".format(
+            raw_gesture_name.upper(),
+            command_gesture_name.upper()
+        ),
+        (20, 280),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (0, 255, 255),
+        2
+    )
+
+    cv2.putText(
+        image,
+        "Candidate: {} | Frames: {}/{} | Status: {}".format(
+            confirmation_candidate.upper(),
+            confirmation_counter,
+            confirmation_required,
+            confirmation_status.upper()
+        ),
+        (20, 315),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.60,
+        (0, 255, 255),
+        2
+    )
 
 # ---------------------------------------------------------------------------
 # Block 14 - Operator image processing callback.
@@ -387,7 +516,7 @@ def image_callback(msg):
     global ackermann_command_publisher, latest_processed_frame
 
     try:
-        # Convert ROS image to OpenCV image
+        # Convert ROS image to OpenCV image.
         cv_image = image_bridge.imgmsg_to_cv2(msg, "bgr8")
 
     except CvBridgeError as error:
@@ -396,49 +525,58 @@ def image_callback(msg):
 
     invert_steering = rospy.get_param("~invert_steering", False)
 
-    # TODO Processing the image with MediaPipe
+    # TODO Processing the image with MediaPipe.
     rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
     rgb_image.flags.writeable = False
     detection_results = hand_landmark_detector.process(rgb_image)
     rgb_image.flags.writeable = True
 
-    recognised_gesture = "stop"
+    raw_recognised_gesture = "stop"
+    command_gesture = "stop"
     selected_speed = 0.0
     steering_angle = 0.0
     finger_angles = {}
+
+    confirmation_candidate = "stop"
+    confirmation_counter = 0
+    confirmation_required = GESTURE_CONFIRMATION_FRAMES
+    confirmation_status = "waiting"
 
     # TODO Recognise the gesture by means of some classification from the landmarks.
     if detection_results.multi_hand_landmarks:
         command_hand_index = select_command_hand_index(detection_results.multi_hand_landmarks)
         command_hand_landmarks = detection_results.multi_hand_landmarks[command_hand_index]
 
-        recognised_gesture, finger_angles = recognise_direction_gesture(command_hand_landmarks)
+        raw_recognised_gesture, finger_angles = recognise_direction_gesture(command_hand_landmarks)
+
+        # The second hand still controls the velocity modulus exactly as before.
         selected_speed = estimate_velocity_from_second_hand(
             detection_results.multi_hand_landmarks,
             command_hand_index
         )
 
-        # TODO Interpret the obtained gesture and send the ackermann control command.
-        ackermann_command = build_ackermann_command_from_gesture(
-            recognised_gesture,
-            selected_speed,
-            invert_steering=invert_steering
-        )
+    # Temporal confirmation is applied after raw gesture recognition.
+    (
+        command_gesture,
+        confirmation_candidate,
+        confirmation_counter,
+        confirmation_required,
+        confirmation_status
+    ) = update_temporally_confirmed_gesture(raw_recognised_gesture)
 
-        steering_angle = ackermann_command.steering_angle
+    # TODO Interpret the temporally confirmed gesture and send the Ackermann command.
+    ackermann_command = build_ackermann_command_from_gesture(
+        command_gesture,
+        selected_speed,
+        invert_steering=invert_steering
+    )
 
-    else:
-        # No hand detected means no movement command.
-        ackermann_command = build_ackermann_command_from_gesture(
-            "stop",
-            0.0,
-            invert_steering=invert_steering
-        )
+    steering_angle = ackermann_command.steering_angle
 
     if ackermann_command_publisher is not None:
         ackermann_command_publisher.publish(ackermann_command)
 
-    # TODO Draw landsmarks on the image
+    # TODO Draw landmarks on the image.
     if detection_results.multi_hand_landmarks:
         for hand_landmarks in detection_results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(
@@ -451,13 +589,23 @@ def image_callback(msg):
 
     draw_gesture_information(
         cv_image,
-        recognised_gesture,
+        command_gesture,
         ackermann_command.speed,
         steering_angle,
         finger_angles
     )
 
-    # Display image with detected landmarks/gestures
+    draw_temporal_confirmation_information(
+        cv_image,
+        raw_recognised_gesture,
+        command_gesture,
+        confirmation_candidate,
+        confirmation_counter,
+        confirmation_required,
+        confirmation_status
+    )
+
+    # Display image with detected landmarks/gestures.
     # The latest processed frame is stored and displayed in the main loop. This
     # is more stable than calling cv2.imshow directly inside the callback.
     with latest_frame_lock:
@@ -506,6 +654,9 @@ def display_processed_operator_image():
 # ---------------------------------------------------------------------------
 def main():
     global ackermann_command_publisher
+    global GESTURE_CONFIRMATION_FRAMES
+    global STOP_CONFIRMATION_FRAMES
+    global STOP_WHILE_CONFIRMING_NEW_GESTURE
 
     rospy.init_node('pose_estimation', anonymous=True)
 
@@ -515,10 +666,31 @@ def main():
         "/blue/preorder_ackermann_cmd"
     )
 
+    GESTURE_CONFIRMATION_FRAMES = int(rospy.get_param(
+        "~gesture_confirmation_frames",
+        GESTURE_CONFIRMATION_FRAMES
+    ))
+
+    STOP_CONFIRMATION_FRAMES = int(rospy.get_param(
+        "~stop_confirmation_frames",
+        STOP_CONFIRMATION_FRAMES
+    ))
+
+    STOP_WHILE_CONFIRMING_NEW_GESTURE = rospy.get_param(
+        "~stop_while_confirming_new_gesture",
+        STOP_WHILE_CONFIRMING_NEW_GESTURE
+    )
+
+    GESTURE_CONFIRMATION_FRAMES = max(1, GESTURE_CONFIRMATION_FRAMES)
+    STOP_CONFIRMATION_FRAMES = max(1, STOP_CONFIRMATION_FRAMES)
+
     rospy.loginfo("Starting MediaPipe hand pose estimation node.")
     rospy.loginfo("Subscribing to operator image topic: %s", operator_image_topic)
     rospy.loginfo("Publishing pre-safety Ackermann commands to: %s", preorder_ackermann_topic)
-
+    rospy.loginfo("Gesture confirmation frames: %d", GESTURE_CONFIRMATION_FRAMES)
+    rospy.loginfo("Stop confirmation frames: %d", STOP_CONFIRMATION_FRAMES)
+    rospy.loginfo("Stop while confirming new gesture: %s", STOP_WHILE_CONFIRMING_NEW_GESTURE)
+        
     rospy.Subscriber(
         operator_image_topic,
         Image,
