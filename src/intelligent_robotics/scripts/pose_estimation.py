@@ -60,7 +60,12 @@ gesture_window_name = "Hand Pose Estimation"
 DEFAULT_FORWARD_SPEED = 0.75
 MINIMUM_FORWARD_SPEED = 0.35
 MAXIMUM_FORWARD_SPEED = 1.50
+
 TURN_STEERING_ANGLE = 0.60
+
+# Reverse commands use the same second-hand speed modulus, but reduced by this
+# factor to make reverse driving more controllable and safer.
+REVERSE_SPEED_RATIO = 0.60
 
 INDEX_DIRECTION_THRESHOLD = 0.06
 EXTENDED_FINGER_ANGLE_THRESHOLD_DEGREES = 150.0
@@ -220,8 +225,26 @@ def recognise_direction_gesture(hand_landmarks):
     if number_of_extended_long_fingers >= 4:
         return "forward", finger_angles
 
-    # One-finger command mode: the index direction determines the command.
+    # One-finger command mode:
+    #   index up          -> forward
+    #   index left        -> left
+    #   index right       -> right
+    #   index down        -> reverse
+    #   index down-left   -> reverse_left
+    #   index down-right  -> reverse_right
     if finger_states["index"] and number_of_extended_long_fingers <= 2:
+
+        # Downward index gestures are used for reverse driving.
+        if vertical_direction > INDEX_DIRECTION_THRESHOLD:
+            if horizontal_direction < -INDEX_DIRECTION_THRESHOLD:
+                return "reverse_left", finger_angles
+
+            if horizontal_direction > INDEX_DIRECTION_THRESHOLD:
+                return "reverse_right", finger_angles
+
+            return "reverse", finger_angles
+
+        # Horizontal index gestures are used for forward turning.
         if abs(horizontal_direction) > abs(vertical_direction):
             if horizontal_direction < -INDEX_DIRECTION_THRESHOLD:
                 return "left", finger_angles
@@ -229,6 +252,7 @@ def recognise_direction_gesture(hand_landmarks):
             if horizontal_direction > INDEX_DIRECTION_THRESHOLD:
                 return "right", finger_angles
 
+        # Upward index gesture is used for forward driving.
         if vertical_direction < -INDEX_DIRECTION_THRESHOLD:
             return "forward", finger_angles
 
@@ -272,6 +296,9 @@ def estimate_velocity_from_second_hand(multi_hand_landmarks, command_hand_index)
 def build_ackermann_command_from_gesture(gesture_name, selected_speed, invert_steering=False):
     ackermann_command = ackermann_msgs.msg.AckermannDrive()
 
+    selected_speed = abs(selected_speed)
+    reverse_speed = selected_speed * REVERSE_SPEED_RATIO
+
     if gesture_name == "forward":
         ackermann_command.speed = selected_speed
         ackermann_command.steering_angle = 0.0
@@ -282,6 +309,18 @@ def build_ackermann_command_from_gesture(gesture_name, selected_speed, invert_st
 
     elif gesture_name == "right":
         ackermann_command.speed = selected_speed
+        ackermann_command.steering_angle = -TURN_STEERING_ANGLE
+
+    elif gesture_name == "reverse":
+        ackermann_command.speed = -reverse_speed
+        ackermann_command.steering_angle = 0.0
+
+    elif gesture_name == "reverse_left":
+        ackermann_command.speed = -reverse_speed
+        ackermann_command.steering_angle = TURN_STEERING_ANGLE
+
+    elif gesture_name == "reverse_right":
+        ackermann_command.speed = -reverse_speed
         ackermann_command.steering_angle = -TURN_STEERING_ANGLE
 
     else:

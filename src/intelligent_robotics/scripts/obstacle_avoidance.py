@@ -46,7 +46,15 @@ class ObstacleAvoidance:
         self.collision_lateral_margin = rospy.get_param("~collision_lateral_margin", 0.35)
 
         self.maximum_allowed_speed = rospy.get_param("~maximum_allowed_speed", 0.90)
+        self.maximum_allowed_reverse_speed = rospy.get_param("~maximum_allowed_reverse_speed", 0.60)
         self.maximum_allowed_steering_angle = rospy.get_param("~maximum_allowed_steering_angle", 0.42)
+
+        # Reverse obstacle detection can be configured independently from forward
+        # obstacle detection. Usually it is safer to use a shorter distance backwards.
+        self.maximum_reverse_detection_distance = rospy.get_param(
+            "~maximum_reverse_detection_distance",
+            min(self.maximum_detection_distance, 2.00)
+        )
 
         self.obstacle_timeout = rospy.get_param("~obstacle_timeout", 0.80)
         self.command_timeout = rospy.get_param("~command_timeout", 0.80)
@@ -112,27 +120,39 @@ class ObstacleAvoidance:
     # path corridor that the robot is about to follow.
     # -----------------------------------------------------------------------
     def is_obstacle_in_commanded_path(self, obstacle_x, obstacle_y, speed, steering_angle):
-        # The safety layer mainly prevents forward collisions. If the command
-        # is zero or backwards, the frontal obstacle corridor is not considered
-        # dangerous for this simple safety layer.
-        if speed <= 0.0:
+        # If the robot is not moving, no movement path has to be blocked.
+        if abs(speed) < 1e-4:
             return False
 
-        forward_distance = obstacle_x
+        # Movement direction:
+        #   speed > 0 -> check obstacles in front of the robot
+        #   speed < 0 -> check obstacles behind the robot
+        if speed > 0.0:
+            movement_direction = 1.0
+            maximum_distance = self.maximum_detection_distance
+        else:
+            movement_direction = -1.0
+            maximum_distance = self.maximum_reverse_detection_distance
+
+        # In the Velodyne frame, x > 0 is normally in front of the robot and
+        # x < 0 is behind the robot. Multiplying by movement_direction converts
+        # the relevant movement direction into a positive longitudinal distance.
+        longitudinal_distance = obstacle_x * movement_direction
         lateral_distance = obstacle_y
 
-        # Ignore points behind the robot or too far away.
-        if forward_distance < self.minimum_detection_distance:
+        # Ignore points that are not in the movement direction.
+        if longitudinal_distance < self.minimum_detection_distance:
             return False
 
-        if forward_distance > self.maximum_detection_distance:
+        if longitudinal_distance > maximum_distance:
             return False
 
         # Bicycle-model-inspired local path approximation:
-        # curvature = tan(delta) / L
-        # y_path ≈ 0.5 * curvature * x^2
-        # This approximates the centre of the commanded trajectory in the robot
-        # frame. Straight driving gives y_path = 0.
+        #   curvature = tan(delta) / L
+        #   y_path ≈ 0.5 * curvature * s^2
+        #
+        # This is used both forward and backward. For reverse commands, s is the
+        # positive distance behind the robot after the direction conversion above.
         steering_angle = clamp(
             steering_angle,
             -self.maximum_allowed_steering_angle,
@@ -143,12 +163,11 @@ class ObstacleAvoidance:
             predicted_path_y = 0.0
         else:
             curvature = math.tan(steering_angle) / max(self.vehicle_length, 1e-3)
-            predicted_path_y = 0.5 * curvature * (forward_distance ** 2)
+            predicted_path_y = 0.5 * curvature * (longitudinal_distance ** 2)
 
         allowed_lateral_distance = self.vehicle_half_width + self.collision_lateral_margin
 
         return abs(lateral_distance - predicted_path_y) <= allowed_lateral_distance
-
     # -----------------------------------------------------------------------
     # Block 5 - Obstacle point cloud processing.
     # This completes the TODO that asks to process /obstacles considering the
@@ -208,7 +227,7 @@ class ObstacleAvoidance:
         safe_input_command = AckermannDrive()
         safe_input_command.speed = clamp(
             msg.speed,
-            -self.maximum_allowed_speed,
+            -self.maximum_allowed_reverse_speed,
             self.maximum_allowed_speed
         )
         safe_input_command.steering_angle = clamp(
