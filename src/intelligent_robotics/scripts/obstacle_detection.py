@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-# Intelligent Robotics - Master's Degree in Artificial Intelligence - University of Alicante
-#
 # ROS node that detects obstacles from the BLUE robot Velodyne point cloud.
 # It publishes:
 #   - /obstacles: obstacle points projected to a fixed height.

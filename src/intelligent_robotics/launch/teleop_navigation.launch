@@ -2,7 +2,6 @@
 <launch>
 
   <!--
-    Block 1 - Robot environment camera viewer.
     This node displays /camera/color/image_raw so the operator can see the
     simulated robot environment.
   -->
@@ -19,7 +18,6 @@
 
 
   <!--
-    Block 2 - Operator image capture.
     This node obtains images from the operator webcam and publishes them in
     /operator/image.
   -->
@@ -39,7 +37,6 @@
 
 
   <!--
-    Block 3 - Gesture recognition and pre-safety command generation.
     This node reads /operator/image, applies MediaPipe Hands, recognises
     gestures, and publishes the command in /blue/preorder_ackermann_cmd.
   -->
@@ -54,7 +51,6 @@
     <param name="invert_steering" value="false"/>
 
     <!--
-      Temporal gesture confirmation.
       A movement gesture must be detected for several consecutive frames before
       being accepted. This reduces false positives from isolated MediaPipe errors.
     -->
@@ -75,7 +71,6 @@
 
 
   <!--
-    Block 4 - Obstacle detection from the BLUE Velodyne LiDAR.
     This node publishes /obstacles, which is consumed by the safety layer.
   -->
   <node
@@ -92,7 +87,6 @@
 
 
   <!--
-    Block 5 - Safety layer.
     This node receives /blue/preorder_ackermann_cmd and /obstacles, stops the
     robot when a collision risk is detected, and publishes the final command in
     /blue/ackermann_cmd.

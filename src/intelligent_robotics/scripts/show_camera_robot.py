@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 
-# ---------------------------------------------------------------------------
-# Block 1 - Import required libraries.
+# Import required libraries.
 # This node subscribes to the simulated robot environment camera topic and
 # displays the received image in an OpenCV window.
-# ---------------------------------------------------------------------------
 import threading
 
 import rospy
@@ -13,12 +11,10 @@ from cv_bridge import CvBridge, CvBridgeError
 import cv2
 
 
-# ---------------------------------------------------------------------------
-# Block 2 - Global variables shared between the ROS callback and the OpenCV
+# Global variables shared between the ROS callback and the OpenCV
 # display loop.
 # The callback only stores the latest frame. The main loop displays it. This
 # avoids freezing the OpenCV window inside the ROS callback.
-# ---------------------------------------------------------------------------
 image_bridge = CvBridge()
 latest_camera_frame = None
 latest_frame_lock = threading.Lock()
@@ -26,11 +22,9 @@ latest_frame_lock = threading.Lock()
 camera_window_name = "BLUE Robot Environment Camera"
 
 
-# ---------------------------------------------------------------------------
-# Block 3 - Callback function for when an image is received.
+# Callback function for when an image is received.
 # The callback converts the ROS Image message into an OpenCV image and stores
 # only the latest frame.
-# ---------------------------------------------------------------------------
 def image_callback(msg):
     global latest_camera_frame
 
@@ -46,16 +40,12 @@ def image_callback(msg):
     with latest_frame_lock:
         latest_camera_frame = cv_image.copy()
 
-    # TODO Display the image in an OpenCV window and wait 1 ms for OpenCV to process the GUI events.
-    # This TODO is implemented in the main display loop instead of directly
-    # inside the callback to prevent the OpenCV window from freezing.
+    # DONE Display the image in an OpenCV window and wait 1 ms for OpenCV to process the GUI events.
 
 
-# ---------------------------------------------------------------------------
-# Block 4 - Main display loop.
+# Main display loop.
 # This loop keeps the OpenCV window responsive and shows the latest received
 # frame at a controlled rate.
-# ---------------------------------------------------------------------------
 def display_camera_stream():
     global latest_camera_frame, camera_window_name
 
@@ -90,11 +80,9 @@ def display_camera_stream():
     cv2.destroyAllWindows()
 
 
-# ---------------------------------------------------------------------------
-# Block 5 - Main ROS node initialisation.
+# Main ROS node initialisation.
 # The node subscribes to /camera/color/image_raw by default, as required by the
 # assignment.
-# ---------------------------------------------------------------------------
 def main():
     rospy.init_node('show_camera_robot', anonymous=True)
 
@@ -106,7 +94,7 @@ def main():
     rospy.loginfo("Starting robot camera viewer node.")
     rospy.loginfo("Subscribing to camera topic: %s", camera_image_topic)
 
-    # TODO Subscribe to ROS topic that has the images
+    # DONE Subscribe to ROS topic that has the images
     rospy.Subscriber(
         camera_image_topic,
         Image,
@@ -118,8 +106,6 @@ def main():
     display_camera_stream()
 
 
-# ---------------------------------------------------------------------------
-# Block 6 - Python entry point.
-# ---------------------------------------------------------------------------
+# Python entry point.
 if __name__ == '__main__':
     main()

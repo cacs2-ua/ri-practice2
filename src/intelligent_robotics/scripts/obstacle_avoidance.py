@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
-# ---------------------------------------------------------------------------
-# Block 1 - Import required libraries.
 # This node implements the safety layer required in Part 6. It receives the
 # gesture command from /blue/preorder_ackermann_cmd, checks the obstacle point
 # cloud from /obstacles, and publishes the final safe command in
 # /blue/ackermann_cmd.
-# ---------------------------------------------------------------------------
 import copy
 import math
 
@@ -17,21 +14,15 @@ from ackermann_msgs.msg import AckermannDrive
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Block 2 - Utility function.
 # It limits numerical values so the safety layer never publishes unsafe
 # steering or speed values.
-# ---------------------------------------------------------------------------
 def clamp(value, minimum_value, maximum_value):
     return max(min(value, maximum_value), minimum_value)
 
 
 class ObstacleAvoidance:
-    # -----------------------------------------------------------------------
-    # Block 3 - ROS node initialisation.
-    # This keeps the original class structure, subscribers and TODO locations,
+    # This keeps the original class structure, subscribers and DONE locations,
     # while adding the required publisher and safety parameters.
-    # -----------------------------------------------------------------------
     def __init__(self):
         # Initialise the ROS node
         rospy.init_node('obstacle_avoidance')
@@ -94,7 +85,7 @@ class ObstacleAvoidance:
             queue_size=10
         )
 
-        # TODO Publisher for modified Ackermann commands
+        # DONE Publisher for modified Ackermann commands
         self.cmd_pub = rospy.Publisher(
             self.safe_ackermann_topic,
             AckermannDrive,
@@ -113,12 +104,9 @@ class ObstacleAvoidance:
         rospy.loginfo("Subscribing to pre-safety commands: %s", self.preorder_ackermann_topic)
         rospy.loginfo("Publishing final safe commands: %s", self.safe_ackermann_topic)
 
-    # -----------------------------------------------------------------------
-    # Block 4 - Predicted local path model.
     # Given an obstacle point in the robot/LiDAR frame and the current steering
     # command, this function estimates whether the obstacle lies inside the
     # path corridor that the robot is about to follow.
-    # -----------------------------------------------------------------------
     def is_obstacle_in_commanded_path(self, obstacle_x, obstacle_y, speed, steering_angle):
         # If the robot is not moving, no movement path has to be blocked.
         if abs(speed) < 1e-4:
@@ -168,14 +156,11 @@ class ObstacleAvoidance:
         allowed_lateral_distance = self.vehicle_half_width + self.collision_lateral_margin
 
         return abs(lateral_distance - predicted_path_y) <= allowed_lateral_distance
-    # -----------------------------------------------------------------------
-    # Block 5 - Obstacle point cloud processing.
-    # This completes the TODO that asks to process /obstacles considering the
+    # This completes the DONE that asks to process /obstacles considering the
     # last movement command. If at least one point lies in the commanded path,
     # the safety layer marks the command as unsafe.
-    # -----------------------------------------------------------------------
     def obstacle_callback(self, msg):
-        # TODO Process the point cloud with the obstacles taking into account the last received movement message to avoid collisions.
+        # DONE Process the point cloud with the obstacles taking into account the last received movement message to avoid collisions.
         current_speed = self.last_ackermann_cmd.speed
         current_steering_angle = self.last_ackermann_cmd.steering_angle
 
@@ -217,11 +202,8 @@ class ObstacleAvoidance:
 
         return
 
-    # -----------------------------------------------------------------------
-    # Block 6 - Pre-safety Ackermann command callback.
     # The gesture recognition node publishes here. This callback stores the
     # latest received command and applies basic speed/steering limits.
-    # -----------------------------------------------------------------------
     def ackermann_callback(self, msg):
         # Stores the last command received
         safe_input_command = AckermannDrive()
@@ -243,12 +225,9 @@ class ObstacleAvoidance:
         self.last_ackermann_cmd = safe_input_command
         self.last_command_time = rospy.Time.now()
 
-    # -----------------------------------------------------------------------
-    # Block 7 - Command modification.
-    # This completes the TODO that asks to modify the Ackermann command if
+    # This completes the DONE that asks to modify the Ackermann command if
     # necessary. If an obstacle is in the commanded path, speed and steering are
     # set to zero to stop the robot.
-    # -----------------------------------------------------------------------
     def modify_ackermann_command(self):
         # Modify the Ackermann command to avoid obstacles (can be modified if necessary).
         cmd = copy.deepcopy(self.last_ackermann_cmd)
@@ -261,11 +240,9 @@ class ObstacleAvoidance:
 
         return cmd
 
-    # -----------------------------------------------------------------------
     # Block 8 - Build the final safe command.
     # If obstacles are recent and the path is blocked, publish a stop command.
     # If the path is free, forward the original gesture command.
-    # -----------------------------------------------------------------------
     def build_safe_ackermann_command(self):
         current_time = rospy.Time.now()
 
@@ -285,17 +262,14 @@ class ObstacleAvoidance:
             )
             return self.modify_ackermann_command()
 
-        # TODO Modify ackermann's message if necessary
+        # DONE Modify ackermann's message if necessary
         if self.collision_risk_detected:
             return self.modify_ackermann_command()
 
         return copy.deepcopy(self.last_ackermann_cmd)
 
-    # -----------------------------------------------------------------------
-    # Block 9 - Periodic publication of the final safe command.
     # This publishes to /blue/ackermann_cmd, which is the topic consumed by the
     # BLUE robot low-level control bridge.
-    # -----------------------------------------------------------------------
     def publish_safe_command(self, event):
         #Send ackermann's message
         cmd = self.build_safe_ackermann_command()

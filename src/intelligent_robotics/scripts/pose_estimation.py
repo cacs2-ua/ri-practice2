@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-# ---------------------------------------------------------------------------
-# Block 1 - Import required libraries.
+# Import required libraries.
 # This ROS node receives the operator image from /operator/image, detects hand
 # landmarks using MediaPipe, recognises simple gestures, and publishes the
 # corresponding Ackermann command in /blue/preorder_ackermann_cmd.
-# ---------------------------------------------------------------------------
 import math
 import threading
 
@@ -18,12 +16,10 @@ import ackermann_msgs.msg
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Block 2 - MediaPipe hand detector declaration.
-# This completes the original TODO and uses MediaPipe Hands, which provides the
+# MediaPipe hand detector declaration.
+# This completes the original DONE and uses MediaPipe Hands, which provides the
 # 21 hand landmarks required by the practice specification.
-# ---------------------------------------------------------------------------
-# TODO Declare the mediapipe pose detector to be used
+# DONE Declare the mediapipe pose detector to be used
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -37,11 +33,9 @@ hand_landmark_detector = mp_hands.Hands(
 )
 
 
-# ---------------------------------------------------------------------------
-# Block 3 - Global ROS/OpenCV objects.
+# Global ROS/OpenCV objects.
 # The publisher is initialised in main(). The latest frame is stored by the
 # callback and displayed by the main loop to avoid OpenCV window freezes.
-# ---------------------------------------------------------------------------
 # Control message publisher
 ackermann_command_publisher = None
 
@@ -52,11 +46,9 @@ latest_frame_lock = threading.Lock()
 gesture_window_name = "Hand Pose Estimation"
 
 
-# ---------------------------------------------------------------------------
-# Block 4 - Gesture-control parameters.
+# Gesture-control parameters.
 # These values are conservative so the robot does not move too aggressively.
 # They can be changed using ROS private parameters if needed.
-# ---------------------------------------------------------------------------
 DEFAULT_FORWARD_SPEED = 0.75
 MINIMUM_FORWARD_SPEED = 0.35
 MAXIMUM_FORWARD_SPEED = 1.50
@@ -70,7 +62,6 @@ REVERSE_SPEED_RATIO = 0.60
 INDEX_DIRECTION_THRESHOLD = 0.06
 EXTENDED_FINGER_ANGLE_THRESHOLD_DEGREES = 150.0
 
-# ---------------------------------------------------------------------------
 # Temporal gesture confirmation parameters.
 # A movement gesture is only accepted if it appears for several consecutive
 # frames. This avoids false positives caused by isolated MediaPipe errors.
@@ -81,7 +72,6 @@ EXTENDED_FINGER_ANGLE_THRESHOLD_DEGREES = 150.0
 #   10 frames ≈ 0.33 seconds
 #
 # Stop is kept immediate for safety.
-# ---------------------------------------------------------------------------
 GESTURE_CONFIRMATION_FRAMES = 5
 STOP_CONFIRMATION_FRAMES = 1
 
@@ -96,19 +86,12 @@ candidate_gesture_counter = 0
 confirmed_gesture_name = "stop"
 
 
-# ---------------------------------------------------------------------------
-# Block 5 - Utility function to clamp numeric values.
 # This keeps speed and steering values within safe limits.
-# ---------------------------------------------------------------------------
 def clamp(value, minimum_value, maximum_value):
     return max(min(value, maximum_value), minimum_value)
 
 
-# ---------------------------------------------------------------------------
-# Block 6 - Utility function to compute a 2D joint angle.
-# The practice asks to process hand coordinates to obtain angular measurements.
 # This function calculates the angle at the middle landmark using three points.
-# ---------------------------------------------------------------------------
 def calculate_joint_angle_degrees(first_point, middle_point, last_point):
     first_vector = np.array(first_point) - np.array(middle_point)
     last_vector = np.array(last_point) - np.array(middle_point)
@@ -125,22 +108,18 @@ def calculate_joint_angle_degrees(first_point, middle_point, last_point):
     return math.degrees(math.acos(cosine_angle))
 
 
-# ---------------------------------------------------------------------------
-# Block 7 - Helper function to read landmark coordinates.
+# Helper function to read landmark coordinates.
 # MediaPipe provides normalised image coordinates, which are sufficient for
 # gesture recognition based on relative hand geometry.
-# ---------------------------------------------------------------------------
 def get_landmark_xy(hand_landmarks, landmark_index):
     landmark = hand_landmarks.landmark[landmark_index]
     return np.array([landmark.x, landmark.y])
 
 
-# ---------------------------------------------------------------------------
-# Block 8 - Finger extension analysis using joint angles.
+# Finger extension analysis using joint angles.
 # A finger is considered extended when its main joint angle is sufficiently
 # open. This directly addresses the specification requirement of using angular
 # measurements between hand joints.
-# ---------------------------------------------------------------------------
 def get_finger_extension_states(hand_landmarks):
     thumb_angle = calculate_joint_angle_degrees(
         get_landmark_xy(hand_landmarks, 2),
@@ -191,11 +170,9 @@ def get_finger_extension_states(hand_landmarks):
     return finger_states, finger_angles
 
 
-# ---------------------------------------------------------------------------
-# Block 9 - Select the main command hand.
+# Select the main command hand.
 # If two hands are detected, the largest hand in the image is used for direction
 # commands and the other hand can be used for velocity modulation.
-# ---------------------------------------------------------------------------
 def calculate_hand_bounding_area(hand_landmarks):
     x_values = [landmark.x for landmark in hand_landmarks.landmark]
     y_values = [landmark.y for landmark in hand_landmarks.landmark]
@@ -218,15 +195,7 @@ def select_command_hand_index(multi_hand_landmarks):
     return int(np.argmax(hand_areas))
 
 
-# ---------------------------------------------------------------------------
-# Block 10 - Recognise the direction gesture from the command hand.
-# The command hand supports:
-#   - Open palm: move forward.
-#   - Index finger pointing up: move forward.
-#   - Index finger pointing left: turn left.
-#   - Index finger pointing right: turn right.
-#   - Closed/no recognised gesture: stop.
-# ---------------------------------------------------------------------------
+# Recognise the direction gesture from the command hand.
 def recognise_direction_gesture(hand_landmarks):
     finger_states, finger_angles = get_finger_extension_states(hand_landmarks)
 
@@ -250,13 +219,7 @@ def recognise_direction_gesture(hand_landmarks):
     if number_of_extended_long_fingers >= 4:
         return "forward", finger_angles
 
-    # One-finger command mode:
-    #   index up          -> forward
-    #   index left        -> left
-    #   index right       -> right
-    #   index down        -> reverse
-    #   index down-left   -> reverse_left
-    #   index down-right  -> reverse_right
+
     if finger_states["index"] and number_of_extended_long_fingers <= 2:
 
         # Downward index gestures are used for reverse driving.
@@ -284,13 +247,11 @@ def recognise_direction_gesture(hand_landmarks):
     return "stop", finger_angles
 
 
-# ---------------------------------------------------------------------------
-# Block 10.1 - Temporal gesture confirmation.
+# Temporal gesture confirmation.
 # This filter prevents one-frame MediaPipe errors from immediately generating
 # robot movement commands. A candidate movement gesture must be detected for
 # GESTURE_CONFIRMATION_FRAMES consecutive frames before it becomes the accepted
 # command. The stop command is treated as immediate for safety.
-# ---------------------------------------------------------------------------
 def update_temporally_confirmed_gesture(raw_gesture_name):
     global candidate_gesture_name
     global candidate_gesture_counter
@@ -347,11 +308,8 @@ def update_temporally_confirmed_gesture(raw_gesture_name):
         "confirming"
     )
 
-# ---------------------------------------------------------------------------
-# Block 11 - Estimate velocity using the optional second hand.
 # The distance between thumb tip and index tip of the second hand is used as a
 # simple velocity modulus. If only one hand is detected, a default speed is used.
-# ---------------------------------------------------------------------------
 def estimate_velocity_from_second_hand(multi_hand_landmarks, command_hand_index):
     if not multi_hand_landmarks or len(multi_hand_landmarks) < 2:
         return DEFAULT_FORWARD_SPEED
@@ -376,11 +334,9 @@ def estimate_velocity_from_second_hand(multi_hand_landmarks, command_hand_index)
     return MINIMUM_FORWARD_SPEED + velocity_ratio * (MAXIMUM_FORWARD_SPEED - MINIMUM_FORWARD_SPEED)
 
 
-# ---------------------------------------------------------------------------
-# Block 12 - Convert recognised gesture into Ackermann control command.
+# Convert recognised gesture into Ackermann control command.
 # The output message is published in /blue/preorder_ackermann_cmd. This is the
 # command before the safety layer required in Part 6.
-# ---------------------------------------------------------------------------
 def build_ackermann_command_from_gesture(gesture_name, selected_speed, invert_steering=False):
     ackermann_command = ackermann_msgs.msg.AckermannDrive()
 
@@ -421,11 +377,9 @@ def build_ackermann_command_from_gesture(gesture_name, selected_speed, invert_st
     return ackermann_command
 
 
-# ---------------------------------------------------------------------------
-# Block 13 - Draw information on the operator image.
+# Draw information on the operator image.
 # This is useful for experimentation and for the video demonstration required
 # by the practice documentation.
-# ---------------------------------------------------------------------------
 def draw_gesture_information(image, gesture_name, selected_speed, steering_angle, finger_angles):
     cv2.putText(
         image,
@@ -461,11 +415,9 @@ def draw_gesture_information(image, gesture_name, selected_speed, steering_angle
         )
         y_position += 25
 
-# ---------------------------------------------------------------------------
-# Block 13.1 - Draw temporal confirmation information.
+# Draw temporal confirmation information.
 # This overlay helps to debug whether a raw gesture is already accepted or is
 # still being confirmed frame by frame.
-# ---------------------------------------------------------------------------
 def draw_temporal_confirmation_information(
     image,
     raw_gesture_name,
@@ -503,15 +455,7 @@ def draw_temporal_confirmation_information(
         2
     )
 
-# ---------------------------------------------------------------------------
-# Block 14 - Operator image processing callback.
-# This keeps the initial function structure but completes all TODOs:
-#   - MediaPipe processing.
-#   - Gesture classification.
-#   - Landmark drawing.
-#   - Ackermann command publication.
-# ---------------------------------------------------------------------------
-#Operator image processing
+# Operator image processing callback.
 def image_callback(msg):
     global ackermann_command_publisher, latest_processed_frame
 
@@ -525,7 +469,7 @@ def image_callback(msg):
 
     invert_steering = rospy.get_param("~invert_steering", False)
 
-    # TODO Processing the image with MediaPipe.
+    # DONE Processing the image with MediaPipe.
     rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
     rgb_image.flags.writeable = False
     detection_results = hand_landmark_detector.process(rgb_image)
@@ -542,7 +486,7 @@ def image_callback(msg):
     confirmation_required = GESTURE_CONFIRMATION_FRAMES
     confirmation_status = "waiting"
 
-    # TODO Recognise the gesture by means of some classification from the landmarks.
+    # DONE Recognise the gesture by means of some classification from the landmarks.
     if detection_results.multi_hand_landmarks:
         command_hand_index = select_command_hand_index(detection_results.multi_hand_landmarks)
         command_hand_landmarks = detection_results.multi_hand_landmarks[command_hand_index]
@@ -564,7 +508,7 @@ def image_callback(msg):
         confirmation_status
     ) = update_temporally_confirmed_gesture(raw_recognised_gesture)
 
-    # TODO Interpret the temporally confirmed gesture and send the Ackermann command.
+    # DONE Interpret the temporally confirmed gesture and send the Ackermann command.
     ackermann_command = build_ackermann_command_from_gesture(
         command_gesture,
         selected_speed,
@@ -576,7 +520,7 @@ def image_callback(msg):
     if ackermann_command_publisher is not None:
         ackermann_command_publisher.publish(ackermann_command)
 
-    # TODO Draw landmarks on the image.
+    # DONE Draw landmarks on the image.
     if detection_results.multi_hand_landmarks:
         for hand_landmarks in detection_results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(
@@ -612,10 +556,8 @@ def image_callback(msg):
         latest_processed_frame = cv_image.copy()
 
 
-# ---------------------------------------------------------------------------
-# Block 15 - Main OpenCV display loop.
+# Main OpenCV display loop.
 # This loop keeps the gesture detection window responsive inside Docker.
-# ---------------------------------------------------------------------------
 def display_processed_operator_image():
     global latest_processed_frame
 
@@ -647,11 +589,9 @@ def display_processed_operator_image():
     cv2.destroyAllWindows()
 
 
-# ---------------------------------------------------------------------------
-# Block 16 - Main ROS node initialisation.
+# Main ROS node initialisation.
 # The node subscribes to /operator/image and publishes the pre-safety Ackermann
 # command in /blue/preorder_ackermann_cmd.
-# ---------------------------------------------------------------------------
 def main():
     global ackermann_command_publisher
     global GESTURE_CONFIRMATION_FRAMES
@@ -715,8 +655,6 @@ def main():
     cv2.destroyAllWindows()
 
 
-# ---------------------------------------------------------------------------
-# Block 17 - Python entry point.
-# ---------------------------------------------------------------------------
+# Python entry point.
 if __name__ == '__main__':
     main()

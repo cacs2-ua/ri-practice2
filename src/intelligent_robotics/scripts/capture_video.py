@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 
-# ---------------------------------------------------------------------------
-# Block 1 - Import required libraries.
 # This ROS node obtains the operator image from a webcam or video file using
 # OpenCV and publishes it as a ROS Image message in /operator/image.
-# ---------------------------------------------------------------------------
 import rospy
 import cv2
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
 
-# ---------------------------------------------------------------------------
-# Block 2 - Main video publisher function.
 # This function keeps the original structure of the initial file:
 #   1. Initialise the ROS node.
 #   2. Create the /operator/image publisher.
@@ -20,7 +15,6 @@ from cv_bridge import CvBridge
 #   4. Capture frames.
 #   5. Convert them to ROS Image messages.
 #   6. Publish them continuously.
-# ---------------------------------------------------------------------------
 def video_publisher():
     # Initialise a ROS node
     rospy.init_node('video_publisher', anonymous=True)
@@ -37,14 +31,14 @@ def video_publisher():
     rospy.loginfo("Starting operator video publisher.")
     rospy.loginfo("Publishing operator images on topic: %s", operator_image_topic)
 
-    # TODO Create a publisher in the /operator/image topic.
+    # DONE Create a publisher in the /operator/image topic.
     operator_image_publisher = rospy.Publisher(
         operator_image_topic,
         Image,
         queue_size=1
     )
 
-    # TODO Set up video capture from webcam (or from video)
+    # DONE Set up video capture from webcam (or from video)
     if video_file:
         rospy.loginfo("Opening operator video file: %s", video_file)
         cap = cv2.VideoCapture(video_file)
@@ -71,7 +65,7 @@ def video_publisher():
     rate = rospy.Rate(publish_rate_hz)
 
     while not rospy.is_shutdown():
-        # TODO Capture a frame from the webcam
+        # DONE Capture a frame from the webcam
         frame_was_read, operator_frame = cap.read()
 
         if not frame_was_read:
@@ -89,12 +83,12 @@ def video_publisher():
         if flip_operator_image:
             operator_frame = cv2.flip(operator_frame, 1)
 
-        # TODO Convert OpenCV frame to ROS message
+        # DONE Convert OpenCV frame to ROS message
         operator_image_message = bridge.cv2_to_imgmsg(operator_frame, encoding="bgr8")
         operator_image_message.header.stamp = rospy.Time.now()
         operator_image_message.header.frame_id = "operator_camera"
 
-        # TODO Post the message in the topic
+        # DONE Post the message in the topic
         operator_image_publisher.publish(operator_image_message)
 
         # Optional preview window for debugging the webcam capture.
@@ -114,10 +108,6 @@ def video_publisher():
     cv2.destroyAllWindows()
 
 
-# ---------------------------------------------------------------------------
-# Block 3 - Python entry point.
-# This preserves the original executable structure of the initial file.
-# ---------------------------------------------------------------------------
 if __name__ == '__main__':
     try:
         video_publisher()
